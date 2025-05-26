@@ -2,10 +2,12 @@ package com.kAIS.KAIMyEntity.mixin;
 
 import com.kAIS.KAIMyEntity.KAIMyEntityClient;
 import com.kAIS.KAIMyEntity.NativeFunc;
+import com.kAIS.KAIMyEntity.VRDetector;
 import com.kAIS.KAIMyEntity.renderer.IMMDModel;
 import com.kAIS.KAIMyEntity.renderer.MMDAnimManager;
 import com.kAIS.KAIMyEntity.renderer.MMDModelManager;
 import com.kAIS.KAIMyEntity.renderer.MMDModelManager.ModelWithEntityData;
+import com.kAIS.KAIMyEntity.renderer.VRPlayerRenderer;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
@@ -45,6 +47,7 @@ public abstract class KAIMyEntityPlayerRendererMixin extends LivingEntityRendere
         float bodyYaw = Mth.rotLerp(tickDelta, entityIn.yBodyRotO, entityIn.yBodyRot);
         float bodyPitch = 0.0f;
         Vector3f entityTrans = new Vector3f(0.0f);
+
         MMDModelManager.Model m = MMDModelManager.GetModel("EntityPlayer_" + entityIn.getName().getString());
         if (m == null){
             m = MMDModelManager.GetModel("EntityPlayer");
@@ -52,15 +55,26 @@ public abstract class KAIMyEntityPlayerRendererMixin extends LivingEntityRendere
         if (m == null){
             super.render(entityIn, entityYaw, tickDelta, matrixStackIn, vertexConsumers, packedLightIn);
             return;
-        } 
+        }
         if (m != null){
             model = m.model;
         }
+
         MMDModelManager.ModelWithEntityData mwed = (MMDModelManager.ModelWithEntityData) m;
         mwed.loadModelProperties(KAIMyEntityClient.reloadProperties);
+
+        // VR 상태 확인 및 설정
+        if (KAIMyEntityClient.vrLoaded) {
+            VRDetector.VRState vrState = VRDetector.getVRState();
+            if (vrState != VRDetector.VRState.NONE) {
+                // VR 상태를 MMD 모델 데이터에 설정
+                mwed.entityData.vrState = VRPlayerRenderer.VRState.valueOf(vrState.name());
+            }
+        }
+
         float sleepingPitch = mwed.properties.getProperty("sleepingPitch") == null ? 0.0f : Float.valueOf(mwed.properties.getProperty("sleepingPitch"));
         Vector3f sleepingTrans = mwed.properties.getProperty("sleepingTrans") == null ? new Vector3f(0.0f) : KAIMyEntityClient.str2Vec3f(mwed.properties.getProperty("sleepingTrans"));
-        float flyingPitch = mwed.properties.getProperty("flyingPitch") == null ? 0.0f : Float.valueOf(mwed.properties.getProperty("flyingPitch"));
+        float flyingPitch = mwed.properties.getProperty("fyingPitch") == null ? 0.0f : Float.valueOf(mwed.properties.getProperty("flyingPitch"));
         Vector3f flyingTrans = mwed.properties.getProperty("flyingTrans") == null ? new Vector3f(0.0f) : KAIMyEntityClient.str2Vec3f(mwed.properties.getProperty("flyingTrans"));
         float swimmingPitch = mwed.properties.getProperty("swimmingPitch") == null ? 0.0f : Float.valueOf(mwed.properties.getProperty("swimmingPitch"));
         Vector3f swimmingTrans = mwed.properties.getProperty("swimmingTrans") == null ? new Vector3f(0.0f) : KAIMyEntityClient.str2Vec3f(mwed.properties.getProperty("swimmingTrans"));
@@ -69,155 +83,227 @@ public abstract class KAIMyEntityPlayerRendererMixin extends LivingEntityRendere
         float[] size = sizeOfModel(mwed);
 
         if (model != null) {
-            if (!mwed.entityData.playCustomAnim) {
-                //Layer 0
-                if (entityIn.getHealth() == 0.0f) {
-                    AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Die, 0);
-                } else if (entityIn.isFallFlying()) {
-                    AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.ElytraFly, 0);
-                    bodyPitch = entityIn.getXRot() + flyingPitch;
-                    entityTrans = flyingTrans;
-                } else if (entityIn.isSleeping()) {
-                    AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Sleep, 0);
-                    bodyYaw = entityIn.getBedOrientation().toYRot() + 180.0f;
-                    bodyPitch = sleepingPitch;
-                    entityTrans = sleepingTrans;
-                } else if (entityIn.isPassenger()) {
-                    if(entityIn.getVehicle().getType() == EntityType.HORSE && (entityIn.getX() - entityIn.xo != 0.0f || entityIn.getZ() - entityIn.zo != 0.0f)){
-                        AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.OnHorse, 0);
-                    }else if(entityIn.getVehicle().getType() == EntityType.HORSE){
-                        AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Ride, 0);
-                    }else{
-                        AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Ride, 0);
-                    }
-                } else if (entityIn.isSwimming()) {
-                    AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Swim, 0);
-                    bodyPitch = entityIn.getXRot() + swimmingPitch;
-                    entityTrans = swimmingTrans;
-                } else if (entityIn.onClimbable()) {
-                    if(entityIn.getY() - entityIn.yo > 0){
-                        AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.OnClimbableUp, 0);
-                    }else if(entityIn.getY() - entityIn.yo < 0){
-                        AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.OnClimbableDown, 0);
-                    }else{
-                        AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.OnClimbable, 0);
-                    }
-                } else if (entityIn.isSprinting() && !entityIn.isShiftKeyDown()) {
-                    AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Sprint, 0);
-                } else if (entityIn.isVisuallyCrawling()){
-                    if(entityIn.getX() - entityIn.xo != 0.0f || entityIn.getZ() - entityIn.zo != 0.0f){
-                        AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Crawl, 0);
-                    }else {
-                        AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.LieDown, 0);
-                    }
-                    bodyPitch = crawlingPitch;
-                    entityTrans = crawlingTrans;
-                } else if (entityIn.getX() - entityIn.xo != 0.0f || entityIn.getZ() - entityIn.zo != 0.0f) {
-                    AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Walk, 0);
-                } else {
-                    AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Idle, 0);
-                }
-
-                //Layer 1
-                if(!entityIn.isUsingItem() && !entityIn.swinging || entityIn.isSleeping()){
-                    if (mwed.entityData.stateLayers[1] != MMDModelManager.EntityData.EntityState.Idle) {
-                        mwed.entityData.stateLayers[1] = MMDModelManager.EntityData.EntityState.Idle;
-                        model.ChangeAnim(0, 1);
-                    }
-                }else{
-                    if((entityIn.getUsedItemHand() == InteractionHand.MAIN_HAND) && entityIn.isUsingItem()){
-                        String itemId = getItemId_in_ActiveHand(entityIn, InteractionHand.MAIN_HAND);
-                        CustomItemActiveAnim(mwed, MMDModelManager.EntityData.EntityState.ItemRight, itemId, "Right", "using", 1);
-                    }else if((entityIn.swingingArm == InteractionHand.MAIN_HAND) && entityIn.swinging){
-                        String itemId = getItemId_in_ActiveHand(entityIn, InteractionHand.MAIN_HAND);
-                        CustomItemActiveAnim(mwed, MMDModelManager.EntityData.EntityState.SwingRight, itemId, "Right", "swinging", 1);
-                    }else if((entityIn.getUsedItemHand() == InteractionHand.OFF_HAND) && entityIn.isUsingItem()){
-                        String itemId = getItemId_in_ActiveHand(entityIn, InteractionHand.OFF_HAND);
-                        CustomItemActiveAnim(mwed, MMDModelManager.EntityData.EntityState.ItemLeft, itemId, "Left", "using", 1);
-                    }else if((entityIn.swingingArm == InteractionHand.OFF_HAND) && entityIn.swinging){
-                        String itemId = getItemId_in_ActiveHand(entityIn, InteractionHand.OFF_HAND);
-                        CustomItemActiveAnim(mwed, MMDModelManager.EntityData.EntityState.SwingLeft, itemId, "Left", "swinging", 1);
-                    }
-                }
-
-
-                //Layer 2
-                if (entityIn.isShiftKeyDown() && !entityIn.isVisuallyCrawling()) {
-                    AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Sneak, 2);
-                } else {
-                    if (mwed.entityData.stateLayers[2] != MMDModelManager.EntityData.EntityState.Idle) {
-                        mwed.entityData.stateLayers[2] = MMDModelManager.EntityData.EntityState.Idle;
-                        model.ChangeAnim(0, 2);
-                    }
-                }
+            // VR 전용 애니메이션 처리
+            if (KAIMyEntityClient.vrLoaded && VRDetector.getVRState() != VRDetector.VRState.NONE) {
+                handleVRAnimations(entityIn, mwed);
+            } else if (!mwed.entityData.playCustomAnim) {
+                // 일반 애니메이션 처리
+                handleNormalAnimations(entityIn, mwed, flyingPitch, flyingTrans, sleepingPitch, sleepingTrans, swimmingPitch, swimmingTrans, crawlingPitch, crawlingTrans);
             }
 
-            if(KAIMyEntityClient.calledFrom(6).contains("InventoryScreen") || KAIMyEntityClient.calledFrom(6).contains("class_490")){ // net.minecraft.class_490 == net.minecraft.client.gui.screen.ingame.InventoryScreen
-                RenderSystem.setShader(GameRenderer::getPositionTexShader);
-                PoseStack PTS_modelViewStack = new PoseStack(); //[P]osition [T]ex [S]hader
-                PTS_modelViewStack.setIdentity();
-                PTS_modelViewStack.mulPose(RenderSystem.getModelViewMatrix());
-                PTS_modelViewStack.pushPose();
-                int PosX_in_inventory;
-                int PosY_in_inventory;
-                if(MCinstance.gameMode.getPlayerMode() != GameType.CREATIVE && MCinstance.screen instanceof InventoryScreen){
-                    PosX_in_inventory = ((InventoryScreen) MCinstance.screen).getRecipeBookComponent().updateScreenPosition(MCinstance.screen.width, 176);
-                    PosY_in_inventory = (MCinstance.screen.height - 166) / 2;
-                    PTS_modelViewStack.translate(PosX_in_inventory+51, PosY_in_inventory+75, 50);
-                    PTS_modelViewStack.scale(1.5f, 1.5f, 1.5f);
-                }else{
-                    PosX_in_inventory = (MCinstance.screen.width - 121) / 2;
-                    PosY_in_inventory = (MCinstance.screen.height - 195) / 2;
-                    PTS_modelViewStack.translate(PosX_in_inventory+51, PosY_in_inventory+75, 50.0);
-                }
-                PTS_modelViewStack.scale(size[1], size[1], size[1]);
-                PTS_modelViewStack.scale(20.0f,20.0f, -20.0f);
-                Quaternionf quaternionf = (new Quaternionf()).rotateZ((float)Math.PI);
-                Quaternionf quaternionf1 = (new Quaternionf()).rotateX(-entityIn.getXRot() * ((float)Math.PI / 180F));
-                Quaternionf quaternionf2 = (new Quaternionf()).rotateY(-entityIn.yBodyRot * ((float)Math.PI / 180F));
-                quaternionf.mul(quaternionf1);
-                quaternionf.mul(quaternionf2);
-                PTS_modelViewStack.mulPose(quaternionf);
-                RenderSystem.setShader(GameRenderer::getRendertypeEntityTranslucentShader);
-                model.Render(entityIn, entityYaw, 0.0f, new Vector3f(0.0f), tickDelta, PTS_modelViewStack, packedLightIn);
-                PTS_modelViewStack.popPose();
-                matrixStackIn.mulPose(quaternionf2);
-                matrixStackIn.scale(size[1], size[1], size[1]);
-                matrixStackIn.scale(0.09f, 0.09f, 0.09f);
-            }else{
+            // 렌더링 처리
+            if(KAIMyEntityClient.calledFrom(6).contains("InventoryScreen") || KAIMyEntityClient.calledFrom(6).contains("class_490")){
+                renderInInventory(entityIn, entityYaw, tickDelta, matrixStackIn, packedLightIn, model, size, MCinstance);
+            } else {
                 matrixStackIn.scale(size[0], size[0], size[0]);
                 RenderSystem.setShader(GameRenderer::getRendertypeEntityTranslucentShader);
                 model.Render(entityIn, bodyYaw, bodyPitch, entityTrans, tickDelta, matrixStackIn, packedLightIn);
             }
-            NativeFunc nf = NativeFunc.GetInst();
-            float rotationDegree = 0.0f;
-            nf.GetRightHandMat(model.GetModelLong(), mwed.entityData.rightHandMat);
-            matrixStackIn.pushPose();
-            matrixStackIn.last().pose().mul(DataToMat(nf, mwed.entityData.rightHandMat));
-            rotationDegree = ItemRotaionDegree(entityIn, mwed, InteractionHand.MAIN_HAND, "z");
-            matrixStackIn.mulPose(new Quaternionf().rotateZ(rotationDegree*((float)Math.PI / 180F)));
-            rotationDegree = ItemRotaionDegree(entityIn, mwed, InteractionHand.MAIN_HAND, "x");
-            matrixStackIn.mulPose(new Quaternionf().rotateX(rotationDegree*((float)Math.PI / 180F)));
-            matrixStackIn.scale(10.0f, 10.0f, 10.0f);
-            Minecraft.getInstance().getItemRenderer().renderStatic(entityIn, entityIn.getMainHandItem(), ItemDisplayContext.THIRD_PERSON_RIGHT_HAND, false, matrixStackIn, vertexConsumers, entityIn.level(), packedLightIn, OverlayTexture.NO_OVERLAY, 0);
-            matrixStackIn.popPose();
 
-            nf.GetLeftHandMat(model.GetModelLong(), mwed.entityData.leftHandMat);
-            matrixStackIn.pushPose();
-            matrixStackIn.last().pose().mul(DataToMat(nf, mwed.entityData.leftHandMat));
-            rotationDegree = ItemRotaionDegree(entityIn, mwed, InteractionHand.OFF_HAND, "z");
-            matrixStackIn.mulPose(new Quaternionf().rotateZ(rotationDegree*((float)Math.PI / 180F)));
-            rotationDegree = ItemRotaionDegree(entityIn, mwed, InteractionHand.OFF_HAND, "x");
-            matrixStackIn.mulPose(new Quaternionf().rotateX(rotationDegree*((float)Math.PI / 180F)));
-            matrixStackIn.scale(10.0f, 10.0f, 10.0f);
-            Minecraft.getInstance().getItemRenderer().renderStatic(entityIn, entityIn.getOffhandItem(), ItemDisplayContext.THIRD_PERSON_LEFT_HAND, true, matrixStackIn, vertexConsumers, entityIn.level(), packedLightIn, OverlayTexture.NO_OVERLAY, 0);
-            matrixStackIn.popPose();
+            // VR 전용 렌더링 처리
+            if (KAIMyEntityClient.vrLoaded && VRDetector.getVRState() != VRDetector.VRState.NONE) {
+                renderVRSpecificElements(entityIn, matrixStackIn, vertexConsumers, packedLightIn, mwed);
+            }
+
+            // 아이템 렌더링
+            renderItems(entityIn, matrixStackIn, vertexConsumers, packedLightIn, model, mwed);
         }
-        
-        //for(int i=0; i<10; i++){
-        //    KAIMyEntityClient.drawText(i+":"+KAIMyEntityClient.debugStr[i], 0, i*15);
-        //}
-        ci.cancel();//Added By FMyuchuan. | 隐藏模型脚下的史蒂夫
+
+        ci.cancel();
+    }
+
+    private void handleVRAnimations(AbstractClientPlayer entityIn, MMDModelManager.ModelWithEntityData mwed) {
+        VRDetector.VRState vrState = VRDetector.getVRState();
+
+        // VR 컨트롤러 상태 확인
+        VRDetector.VRControllerData leftController = VRDetector.getControllerData(0);
+        VRDetector.VRControllerData rightController = VRDetector.getControllerData(1);
+
+        // Layer 0 - 기본 VR 자세
+        if (vrState == VRDetector.VRState.SEATED) {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.VR_Seated, 0);
+        } else if (vrState == VRDetector.VRState.STANDING) {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.VR_Standing, 0);
+        }
+
+        // Layer 1 - 왼손 컨트롤러
+        if (leftController != null && leftController.isTracking) {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.VR_HandLeft, 1);
+        } else {
+            if (mwed.entityData.stateLayers[1] != MMDModelManager.EntityData.EntityState.Idle) {
+                mwed.entityData.stateLayers[1] = MMDModelManager.EntityData.EntityState.Idle;
+                mwed.model.ChangeAnim(0, 1);
+            }
+        }
+
+        // Layer 2 - 오른손 컨트롤러
+        if (rightController != null && rightController.isTracking) {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.VR_HandRight, 2);
+        } else {
+            if (mwed.entityData.stateLayers[2] != MMDModelManager.EntityData.EntityState.Idle) {
+                mwed.entityData.stateLayers[2] = MMDModelManager.EntityData.EntityState.Idle;
+                mwed.model.ChangeAnim(0, 2);
+            }
+        }
+    }
+
+    private void handleNormalAnimations(AbstractClientPlayer entityIn, MMDModelManager.ModelWithEntityData mwed,
+                                        float flyingPitch, Vector3f flyingTrans, float sleepingPitch, Vector3f sleepingTrans,
+                                        float swimmingPitch, Vector3f swimmingTrans, float crawlingPitch, Vector3f crawlingTrans) {
+        //Layer 0
+        if (entityIn.getHealth() == 0.0f) {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Die, 0);
+        } else if (entityIn.isFallFlying()) {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.ElytraFly, 0);
+        } else if (entityIn.isSleeping()) {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Sleep, 0);
+        } else if (entityIn.isPassenger()) {
+            if(entityIn.getVehicle().getType() == EntityType.HORSE && (entityIn.getX() - entityIn.xo != 0.0f || entityIn.getZ() - entityIn.zo != 0.0f)){
+                AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.OnHorse, 0);
+            }else if(entityIn.getVehicle().getType() == EntityType.HORSE){
+                AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Ride, 0);
+            }else{
+                AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Ride, 0);
+            }
+        } else if (entityIn.isSwimming()) {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Swim, 0);
+        } else if (entityIn.onClimbable()) {
+            if(entityIn.getY() - entityIn.yo > 0){
+                AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.OnClimbableUp, 0);
+            }else if(entityIn.getY() - entityIn.yo < 0){
+                AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.OnClimbableDown, 0);
+            }else{
+                AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.OnClimbable, 0);
+            }
+        } else if (entityIn.isSprinting() && !entityIn.isShiftKeyDown()) {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Sprint, 0);
+        } else if (entityIn.isVisuallyCrawling()){
+            if(entityIn.getX() - entityIn.xo != 0.0f || entityIn.getZ() - entityIn.zo != 0.0f){
+                AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Crawl, 0);
+            }else {
+                AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.LieDown, 0);
+            }
+        } else if (entityIn.getX() - entityIn.xo != 0.0f || entityIn.getZ() - entityIn.zo != 0.0f) {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Walk, 0);
+        } else {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Idle, 0);
+        }
+
+        //Layer 1
+        if(!entityIn.isUsingItem() && !entityIn.swinging || entityIn.isSleeping()){
+            if (mwed.entityData.stateLayers[1] != MMDModelManager.EntityData.EntityState.Idle) {
+                mwed.entityData.stateLayers[1] = MMDModelManager.EntityData.EntityState.Idle;
+                mwed.model.ChangeAnim(0, 1);
+            }
+        }else{
+            if((entityIn.getUsedItemHand() == InteractionHand.MAIN_HAND) && entityIn.isUsingItem()){
+                String itemId = getItemId_in_ActiveHand(entityIn, InteractionHand.MAIN_HAND);
+                CustomItemActiveAnim(mwed, MMDModelManager.EntityData.EntityState.ItemRight, itemId, "Right", "using", 1);
+            }else if((entityIn.swingingArm == InteractionHand.MAIN_HAND) && entityIn.swinging){
+                String itemId = getItemId_in_ActiveHand(entityIn, InteractionHand.MAIN_HAND);
+                CustomItemActiveAnim(mwed, MMDModelManager.EntityData.EntityState.SwingRight, itemId, "Right", "swinging", 1);
+            }else if((entityIn.getUsedItemHand() == InteractionHand.OFF_HAND) && entityIn.isUsingItem()){
+                String itemId = getItemId_in_ActiveHand(entityIn, InteractionHand.OFF_HAND);
+                CustomItemActiveAnim(mwed, MMDModelManager.EntityData.EntityState.ItemLeft, itemId, "Left", "using", 1);
+            }else if((entityIn.swingingArm == InteractionHand.OFF_HAND) && entityIn.swinging){
+                String itemId = getItemId_in_ActiveHand(entityIn, InteractionHand.OFF_HAND);
+                CustomItemActiveAnim(mwed, MMDModelManager.EntityData.EntityState.SwingLeft, itemId, "Left", "swinging", 1);
+            }
+        }
+
+        //Layer 2
+        if (entityIn.isShiftKeyDown() && !entityIn.isVisuallyCrawling()) {
+            AnimStateChangeOnce(mwed, MMDModelManager.EntityData.EntityState.Sneak, 2);
+        } else {
+            if (mwed.entityData.stateLayers[2] != MMDModelManager.EntityData.EntityState.Idle) {
+                mwed.entityData.stateLayers[2] = MMDModelManager.EntityData.EntityState.Idle;
+                mwed.model.ChangeAnim(0, 2);
+            }
+        }
+    }
+
+    private void renderInInventory(AbstractClientPlayer entityIn, float entityYaw, float tickDelta, PoseStack matrixStackIn,
+                                   int packedLightIn, IMMDModel model, float[] size, Minecraft MCinstance) {
+        RenderSystem.setShader(GameRenderer::getPositionTexShader);
+        PoseStack PTS_modelViewStack = new PoseStack();
+        PTS_modelViewStack.setIdentity();
+        PTS_modelViewStack.mulPose(RenderSystem.getModelViewMatrix());
+        PTS_modelViewStack.pushPose();
+        int PosX_in_inventory;
+        int PosY_in_inventory;
+        if(MCinstance.gameMode.getPlayerMode() != GameType.CREATIVE && MCinstance.screen instanceof InventoryScreen){
+            PosX_in_inventory = ((InventoryScreen) MCinstance.screen).getRecipeBookComponent().updateScreenPosition(MCinstance.screen.width, 176);
+            PosY_in_inventory = (MCinstance.screen.height - 166) / 2;
+            PTS_modelViewStack.translate(PosX_in_inventory+51, PosY_in_inventory+75, 50);
+            PTS_modelViewStack.scale(1.5f, 1.5f, 1.5f);
+        }else{
+            PosX_in_inventory = (MCinstance.screen.width - 121) / 2;
+            PosY_in_inventory = (MCinstance.screen.height - 195) / 2;
+            PTS_modelViewStack.translate(PosX_in_inventory+51, PosY_in_inventory+75, 50.0);
+        }
+        PTS_modelViewStack.scale(size[1], size[1], size[1]);
+        PTS_modelViewStack.scale(20.0f,20.0f, -20.0f);
+        Quaternionf quaternionf = (new Quaternionf()).rotateZ((float)Math.PI);
+        Quaternionf quaternionf1 = (new Quaternionf()).rotateX(-entityIn.getXRot() * ((float)Math.PI / 180F));
+        Quaternionf quaternionf2 = (new Quaternionf()).rotateY(-entityIn.yBodyRot * ((float)Math.PI / 180F));
+        quaternionf.mul(quaternionf1);
+        quaternionf.mul(quaternionf2);
+        PTS_modelViewStack.mulPose(quaternionf);
+        RenderSystem.setShader(GameRenderer::getRendertypeEntityTranslucentShader);
+        model.Render(entityIn, entityYaw, 0.0f, new Vector3f(0.0f), tickDelta, PTS_modelViewStack, packedLightIn);
+        PTS_modelViewStack.popPose();
+        matrixStackIn.mulPose(quaternionf2);
+        matrixStackIn.scale(size[1], size[1], size[1]);
+        matrixStackIn.scale(0.09f, 0.09f, 0.09f);
+    }
+
+    private void renderVRSpecificElements(AbstractClientPlayer entityIn, PoseStack matrixStackIn,
+                                          MultiBufferSource vertexConsumers, int packedLightIn,
+                                          MMDModelManager.ModelWithEntityData mwed) {
+        // VR 헤드셋 위치에 따른 헤드 추적
+        VRDetector.VRHeadData headData = VRDetector.getHeadData();
+        if (headData != null && headData.isTracking) {
+            NativeFunc nf = NativeFunc.GetInst();
+            nf.SetHeadAngle(mwed.model.GetModelLong(),
+                    headData.rotX, headData.rotY, headData.rotZ, true);
+        }
+
+        // VR 컨트롤러 위치에 따른 손 위치 조정
+        VRDetector.VRControllerData leftController = VRDetector.getControllerData(0);
+        VRDetector.VRControllerData rightController = VRDetector.getControllerData(1);
+
+        // TODO: 실제 VR 컨트롤러 위치를 MMD 모델의 손 본에 적용하는 로직 구현
+        // 이 부분은 네이티브 함수에서 본 위치를 직접 조작하는 기능이 필요함
+    }
+
+    private void renderItems(AbstractClientPlayer entityIn, PoseStack matrixStackIn, MultiBufferSource vertexConsumers,
+                             int packedLightIn, IMMDModel model, MMDModelManager.ModelWithEntityData mwed) {
+        NativeFunc nf = NativeFunc.GetInst();
+        float rotationDegree = 0.0f;
+
+        // 오른손 아이템 렌더링
+        nf.GetRightHandMat(model.GetModelLong(), mwed.entityData.rightHandMat);
+        matrixStackIn.pushPose();
+        matrixStackIn.last().pose().mul(DataToMat(nf, mwed.entityData.rightHandMat));
+        rotationDegree = ItemRotaionDegree(entityIn, mwed, InteractionHand.MAIN_HAND, "z");
+        matrixStackIn.mulPose(new Quaternionf().rotateZ(rotationDegree*((float)Math.PI / 180F)));
+        rotationDegree = ItemRotaionDegree(entityIn, mwed, InteractionHand.MAIN_HAND, "x");
+        matrixStackIn.mulPose(new Quaternionf().rotateX(rotationDegree*((float)Math.PI / 180F)));
+        matrixStackIn.scale(10.0f, 10.0f, 10.0f);
+        Minecraft.getInstance().getItemRenderer().renderStatic(entityIn, entityIn.getMainHandItem(), ItemDisplayContext.THIRD_PERSON_RIGHT_HAND, false, matrixStackIn, vertexConsumers, entityIn.level(), packedLightIn, OverlayTexture.NO_OVERLAY, 0);
+        matrixStackIn.popPose();
+
+        // 왼손 아이템 렌더링
+        nf.GetLeftHandMat(model.GetModelLong(), mwed.entityData.leftHandMat);
+        matrixStackIn.pushPose();
+        matrixStackIn.last().pose().mul(DataToMat(nf, mwed.entityData.leftHandMat));
+        rotationDegree = ItemRotaionDegree(entityIn, mwed, InteractionHand.OFF_HAND, "z");
+        matrixStackIn.mulPose(new Quaternionf().rotateZ(rotationDegree*((float)Math.PI / 180F)));
+        rotationDegree = ItemRotaionDegree(entityIn, mwed, InteractionHand.OFF_HAND, "x");
+        matrixStackIn.mulPose(new Quaternionf().rotateX(rotationDegree*((float)Math.PI / 180F)));
+        matrixStackIn.scale(10.0f, 10.0f, 10.0f);
+        Minecraft.getInstance().getItemRenderer().renderStatic(entityIn, entityIn.getOffhandItem(), ItemDisplayContext.THIRD_PERSON_LEFT_HAND, true, matrixStackIn, vertexConsumers, entityIn.level(), packedLightIn, OverlayTexture.NO_OVERLAY, 0);
+        matrixStackIn.popPose();
     }
 
     String getItemId_in_ActiveHand(AbstractClientPlayer entityIn, InteractionHand hand) {
@@ -249,7 +335,7 @@ public abstract class KAIMyEntityPlayerRendererMixin extends LivingEntityRendere
             AnimStateChangeOnce(model, MMDModelManager.EntityData.EntityState.SwingLeft, layer);
         }
     }
-    
+
     float DataToFloat(NativeFunc nf, long data, long pos)
     {
         int temp = 0;
@@ -259,13 +345,14 @@ public abstract class KAIMyEntityPlayerRendererMixin extends LivingEntityRendere
         temp |= (nf.ReadByte(data, pos + 3) & 0xff) << 24;
         return Float.intBitsToFloat(temp);
     }
+
     Matrix4f DataToMat(NativeFunc nf, long data)
     {
         Matrix4f result = new Matrix4f(
-            DataToFloat(nf, data, 0),DataToFloat(nf, data, 16),DataToFloat(nf, data, 32),DataToFloat(nf, data, 48),
-            DataToFloat(nf, data, 4),DataToFloat(nf, data, 20),DataToFloat(nf, data, 36),DataToFloat(nf, data, 52),
-            DataToFloat(nf, data, 8),DataToFloat(nf, data, 24),DataToFloat(nf, data, 40),DataToFloat(nf, data, 56),
-            DataToFloat(nf, data, 12),DataToFloat(nf, data, 28),DataToFloat(nf, data, 44),DataToFloat(nf, data, 60)
+                DataToFloat(nf, data, 0),DataToFloat(nf, data, 16),DataToFloat(nf, data, 32),DataToFloat(nf, data, 48),
+                DataToFloat(nf, data, 4),DataToFloat(nf, data, 20),DataToFloat(nf, data, 36),DataToFloat(nf, data, 52),
+                DataToFloat(nf, data, 8),DataToFloat(nf, data, 24),DataToFloat(nf, data, 40),DataToFloat(nf, data, 56),
+                DataToFloat(nf, data, 12),DataToFloat(nf, data, 28),DataToFloat(nf, data, 44),DataToFloat(nf, data, 60)
         );
         result.transpose();
         return result;
@@ -276,7 +363,7 @@ public abstract class KAIMyEntityPlayerRendererMixin extends LivingEntityRendere
         String itemId;
         String strHand;
         String handState;
-        
+
         itemId = getItemId_in_ActiveHand(entityIn,iHand);
 
         if (iHand == InteractionHand.MAIN_HAND){
@@ -298,7 +385,7 @@ public abstract class KAIMyEntityPlayerRendererMixin extends LivingEntityRendere
         } else if (mwed.properties.getProperty("default_" + axis) != null){
             result = Float.valueOf(mwed.properties.getProperty("default_" + axis));
         }
-        
+
         return result;
     }
 
