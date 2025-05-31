@@ -1,7 +1,0 @@
-{
-    "category.kaimyentity.main": "KAIMyEntity",
-    "key.kaimyentity.toggleVMC": "VMC 토글",
-    "key.kaimyentity.resetPhysics": "물리 리셋",
-    "key.kaimyentity.reloadModels": "모델 리로드",
-    "key.kaimyentity.reloadProperties": "속성 리로드"
-}
