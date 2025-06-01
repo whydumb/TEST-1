@@ -1,6 +1,5 @@
 package com.kAIS.KAIMyEntity;
 
-import com.kAIS.KAIMyEntity.renderer.MMDAnimManager;
 import com.kAIS.KAIMyEntity.renderer.MMDModelManager;
 import com.kAIS.KAIMyEntity.renderer.MMDTextureManager;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -32,13 +31,6 @@ public class KAIMyEntityClient {
     static final long TOOBIG = 0x6400000; // Max size of unzipped data, 100MB
     static final int TOOMANY = 1024;      // Max number of files
     //public static String[] debugStr = new String[10];
-
-    public static void initClient() {
-        checkKAIMyEntityFolder();
-        MMDModelManager.Init();
-        MMDTextureManager.Init();
-        MMDAnimManager.Init();
-    }
 
     private static String validateFilename(String filename, String intendedDir) throws java.io.IOException {
         File f = new File(filename);

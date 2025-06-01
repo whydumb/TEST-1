@@ -189,22 +189,7 @@ public class NativeFunc {
 
     public native int GetSubMeshVertexCount(long model, long pos);
 
-    public native void ChangeModelAnim(long model, long anim, long layer);
-
     public native void ResetModelPhysics(long model);
-
-    public native long CreateMat();
-
-    public native void DeleteMat(long mat);
-
-    public native void GetRightHandMat(long model, long mat);
-
-    public native void GetLeftHandMat(long model, long mat);
-
-    public native void SetRightLegAngle(long model, float hipX, float hipY, float hipZ,
-                                        float kneeX, float ankleX, float ankleY, boolean flag);
-    public native void SetLeftLegAngle(long model, float hipX, float hipY, float hipZ,
-                                       float kneeX, float ankleX, float ankleY, boolean flag);
 
     public native long LoadTexture(String filename);
 
@@ -217,12 +202,6 @@ public class NativeFunc {
     public native long GetTextureData(long tex);
 
     public native boolean TextureHasAlpha(long tex);
-
-    public native long LoadAnimation(long model, String filename);
-
-    public native void DeleteAnimation(long anim);
-
-    public native void SetHeadAngle(long model, float x, float y, float z, boolean flag);
 
     enum runtimeUrlRes {
         windows,android_arch64, android_arch64_libc

@@ -85,15 +85,15 @@ public class MMDModelOpenGL implements IMMDModel {
         isShaderInited = true;
     }
 
-    public static MMDModelOpenGL Create(String modelFilename, String modelDir, boolean isPMD, long layerCount) {
+    public static MMDModelOpenGL Create(String modelFilename, String modelDir, boolean isPMD) {
         if (!isShaderInited && isMMDShaderEnabled)
             InitShader();
         if (nf == null) nf = NativeFunc.GetInst();
         long model;
         if (isPMD)
-            model = nf.LoadModelPMD(modelFilename, modelDir, layerCount);
+            model = nf.LoadModelPMD(modelFilename, modelDir, 1); // 기본값 1로 설정
         else
-            model = nf.LoadModelPMX(modelFilename, modelDir, layerCount);
+            model = nf.LoadModelPMX(modelFilename, modelDir, 1); // 기본값 1로 설정
         if (model == 0) {
             logger.info(String.format("Cannot open model: '%s'.", modelFilename));
             return null;
@@ -225,47 +225,8 @@ public class MMDModelOpenGL implements IMMDModel {
     }
 
     public void Render(Entity entityIn, float entityYaw, float entityPitch, Vector3f entityTrans, float tickDelta, PoseStack mat, int packedLight) {
-        if(entityIn instanceof LivingEntity && tickDelta != 1.0f){
-            RenderLivingEntity((LivingEntity)entityIn, entityYaw, entityPitch, entityTrans, tickDelta, mat, packedLight);
-            return;
-        }
         Update();
         RenderModel(entityIn, entityYaw, entityPitch, entityTrans, mat);
-    }
-
-    public void RenderLivingEntity(LivingEntity entityIn, float entityYaw, float entityPitch, Vector3f entityTrans, float tickDelta, PoseStack mat, int packedLight) {
-        float headAngleX = entityIn.getXRot();
-        float headAngleY = (entityYaw - Mth.lerp(tickDelta, entityIn.yHeadRotO, entityIn.yHeadRot))%360.0f;
-        if(headAngleX < -50.0f){
-            headAngleX = -50.0f;
-        }else if(50.0f < headAngleX){
-            headAngleX = 50.0f;
-        }
-        if(headAngleY < -180.0f){
-            headAngleY = headAngleY + 360.0f;
-        } else if(180.0f < headAngleY){
-            headAngleY = headAngleY - 360.0f;
-        }
-        if(headAngleY < -80.0f){
-            headAngleY = -80.0f;
-        }else if(80.0f < headAngleY){
-            headAngleY = 80.0f;
-        }
-        if(KAIMyEntityClient.calledFrom(6).contains("InventoryScreen") || KAIMyEntityClient.calledFrom(6).contains("class_490")){
-            nf.SetHeadAngle(model, headAngleX*((float)Math.PI / 180F), -headAngleY*((float)Math.PI / 180F), 0.0f, false);
-        }else{
-            nf.SetHeadAngle(model, headAngleX*((float)Math.PI / 180F), headAngleY*((float)Math.PI / 180F), 0.0f, true);
-        }
-        Update();
-        RenderModel(entityIn, entityYaw, entityPitch, entityTrans, mat);
-    }
-
-    public void ChangeAnim(long anim, long layer) {
-        nf.ChangeModelAnim(model, anim, layer);
-    }
-
-    public void ResetPhysics() {
-        nf.ResetModelPhysics(model);
     }
 
     public long GetModelLong() {
@@ -294,7 +255,7 @@ public class MMDModelOpenGL implements IMMDModel {
         temp.mulPose(new Quaternionf().rotateX(MCinstance.gameRenderer.getMainCamera().getXRot()*((float)Math.PI / 180F)));
         temp.mulPose(new Quaternionf().rotateY(MCinstance.gameRenderer.getMainCamera().getYRot()*((float)Math.PI / 180F)));
         temp.mulPose(new Quaternionf().rotateY(180.0f*((float)Math.PI / 180F)));
-        
+
 
         deliverStack.mulPose(new Quaternionf().rotateY(-entityYaw*((float)Math.PI / 180F)));
         deliverStack.mulPose(new Quaternionf().rotateX(entityPitch*((float)Math.PI / 180F)));
@@ -306,7 +267,7 @@ public class MMDModelOpenGL implements IMMDModel {
         if(!(KAIMyEntityClient.calledFrom(8).contains("InventoryScreen") || KAIMyEntityClient.calledFrom(8).contains("class_490") || RenderSystem.getShader().getName().contains("shadow"))){
             deliverStack = temp;
         }
-        
+
         if(KAIMyEntityClient.usingMMDShader == 0){
             shaderProgram = RenderSystem.getShader().getId();
             setUniforms(RenderSystem.getShader(), deliverStack);
@@ -316,7 +277,7 @@ public class MMDModelOpenGL implements IMMDModel {
             shaderProgram = MMDShaderProgram;
             GlStateManager._glUseProgram(shaderProgram);
         }
-        
+
         updateLocation(shaderProgram);
 
         BufferUploader.reset();
@@ -478,7 +439,7 @@ public class MMDModelOpenGL implements IMMDModel {
         }
         if(KAIMyLocationV != -1)
             GL46C.glUniform1i(KAIMyLocationV, 1);
-        
+
         if(KAIMyLocationF != -1)
             GL46C.glUniform1i(KAIMyLocationF, 1);
 
@@ -619,17 +580,17 @@ public class MMDModelOpenGL implements IMMDModel {
         if(shader.FOG_SHAPE != null)
             shader.FOG_SHAPE.set(RenderSystem.getShaderFogShape().getIndex());
 
-        if (shader.TEXTURE_MATRIX != null) 
+        if (shader.TEXTURE_MATRIX != null)
             shader.TEXTURE_MATRIX.set(RenderSystem.getTextureMatrix());
 
-        if (shader.GAME_TIME != null) 
+        if (shader.GAME_TIME != null)
             shader.GAME_TIME.set(RenderSystem.getShaderGameTime());
 
         if (shader.SCREEN_SIZE != null) {
             Window window = Minecraft.getInstance().getWindow();
             shader.SCREEN_SIZE.set((float)window.getScreenWidth(), (float)window.getScreenHeight());
         }
-        if (shader.LINE_WIDTH != null) 
+        if (shader.LINE_WIDTH != null)
             shader.LINE_WIDTH.set(RenderSystem.getShaderLineWidth());
 
         shader.setSampler("Sampler1", lightMapMaterial.tex);
