@@ -1,0 +1,166 @@
+package com.kAIS.KAIMyEntity.neoforge.register;
+
+import com.kAIS.KAIMyEntity.helper.KAIMyEntityRendererPlayerHelper;
+import com.kAIS.KAIMyEntity.KAIMyEntityClient;
+import com.kAIS.KAIMyEntity.neoforge.config.KAIMyEntityConfig;
+import com.kAIS.KAIMyEntity.neoforge.network.KAIMyEntityNetworkPack;
+import com.kAIS.KAIMyEntity.renderer.KAIMyEntityRenderFactory;
+import com.kAIS.KAIMyEntity.renderer.MMDModelManager;
+import com.kAIS.KAIMyEntity.vseeFace.VSeeFaceManager;
+import com.mojang.blaze3d.platform.InputConstants;
+import java.io.File;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.world.entity.EntityType;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.client.settings.KeyConflictContext;
+import net.neoforged.neoforge.client.settings.KeyModifier;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.lwjgl.glfw.GLFW;
+
+@EventBusSubscriber(value = Dist.CLIENT)
+public class KAIMyEntityRegisterClient {
+    static final Logger logger = LogManager.getLogger();
+
+    // 기존 키 매핑들
+    static KeyMapping keyCustomAnim1 = new KeyMapping("key.customAnim1", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, "key.title");
+    static KeyMapping keyCustomAnim2 = new KeyMapping("key.customAnim2", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, "key.title");
+    static KeyMapping keyCustomAnim3 = new KeyMapping("key.customAnim3", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_N, "key.title");
+    static KeyMapping keyCustomAnim4 = new KeyMapping("key.customAnim4", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_M, "key.title");
+    static KeyMapping keyReloadModels = new KeyMapping("key.reloadModels", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, "key.title");
+    static KeyMapping keyResetPhysics = new KeyMapping("key.resetPhysics", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_H, "key.title");
+    static KeyMapping keyReloadProperties = new KeyMapping("key.reloadProperties", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_J, "key.title");
+    static KeyMapping keyChangeProgram = new KeyMapping("key.changeProgram", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_KP_0, "key.title");
+
+    // VSeeFace 관련 키 매핑들
+    static KeyMapping keyToggleVSeeFace = new KeyMapping("key.toggleVSeeFace", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F9, "key.title");
+    static KeyMapping keyVSeeFaceSettings = new KeyMapping("key.vseeFaceSettings", KeyConflictContext.IN_GAME, KeyModifier.SHIFT, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F9, "key.title");
+
+    public static void Register() {
+        Minecraft MCinstance = Minecraft.getInstance();
+        RegisterRenderers RR = new RegisterRenderers();
+        RegisterKeyMappingsEvent RKE = new RegisterKeyMappingsEvent(MCinstance.options);
+
+        // 모든 키를 무조건 등록 (설정 확인 없이)
+        for (KeyMapping i : new KeyMapping[]{keyCustomAnim1, keyCustomAnim2, keyCustomAnim3, keyCustomAnim4, keyReloadModels, keyResetPhysics, keyReloadProperties})
+            RKE.register(i);
+
+        // MMD 셰이더 키도 무조건 등록
+        RKE.register(keyChangeProgram);
+
+        // VSeeFace 키 등록
+        RKE.register(keyToggleVSeeFace);
+        RKE.register(keyVSeeFaceSettings);
+
+        File[] modelDirs = new File(MCinstance.gameDirectory, "KAIMyEntity").listFiles();
+        if (modelDirs != null) {
+            for (File i : modelDirs) {
+                if (!i.getName().startsWith("EntityPlayer") && !i.getName().equals("DefaultAnim") && !i.getName().equals("Shader")) {
+                    String mcEntityName = i.getName().replace('.', ':');
+                    if (EntityType.byString(mcEntityName).isPresent()){
+                        RR.registerEntityRenderer(EntityType.byString(mcEntityName).get(), new KAIMyEntityRenderFactory<>(mcEntityName));
+                        logger.info(mcEntityName + " is present, rendering it.");
+                    }else{
+                        logger.warn(mcEntityName + " not present, ignore rendering it!");
+                    }
+                }
+            }
+        }
+        logger.info("KAIMyEntityRegisterClient.Register() finished.");
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    @SubscribeEvent
+    public static void onKeyPressed(InputEvent.Key event) {
+        Minecraft MCinstance = Minecraft.getInstance();
+        LocalPlayer localPlayer = MCinstance.player;
+
+        // 기존 키 처리 코드
+        if (keyCustomAnim1.isDown()) {
+            MMDModelManager.Model m = MMDModelManager.GetModel("EntityPlayer_" + localPlayer.getName().getString());
+            if (m != null) {
+                KAIMyEntityRendererPlayerHelper.CustomAnim(localPlayer, "1");
+                assert localPlayer != null;
+                PacketDistributor.sendToServer(new KAIMyEntityNetworkPack(1, localPlayer.getGameProfile(), 1));
+            }
+        }
+        if (keyCustomAnim2.isDown()) {
+            MMDModelManager.Model m = MMDModelManager.GetModel("EntityPlayer_" + localPlayer.getName().getString());
+            if (m != null) {
+                KAIMyEntityRendererPlayerHelper.CustomAnim(localPlayer, "2");
+                assert localPlayer != null;
+                PacketDistributor.sendToServer(new KAIMyEntityNetworkPack(1, localPlayer.getGameProfile(), 2));
+            }
+        }
+        if (keyCustomAnim3.isDown()) {
+            MMDModelManager.Model m = MMDModelManager.GetModel("EntityPlayer_" + localPlayer.getName().getString());
+            if (m != null) {
+                KAIMyEntityRendererPlayerHelper.CustomAnim(localPlayer, "3");
+                assert localPlayer != null;
+                PacketDistributor.sendToServer(new KAIMyEntityNetworkPack(1, localPlayer.getGameProfile(), 3));
+            }
+        }
+        if (keyCustomAnim4.isDown()) {
+            MMDModelManager.Model m = MMDModelManager.GetModel("EntityPlayer_" + localPlayer.getName().getString());
+            if (m != null) {
+                KAIMyEntityRendererPlayerHelper.CustomAnim(localPlayer, "4");
+                assert localPlayer != null;
+                PacketDistributor.sendToServer(new KAIMyEntityNetworkPack(1, localPlayer.getGameProfile(), 4));
+            }
+        }
+        if (keyReloadModels.isDown()) {
+            MMDModelManager.ReloadModel();
+        }
+        if (keyResetPhysics.isDown()) {
+            MMDModelManager.Model m = MMDModelManager.GetModel("EntityPlayer_" + localPlayer.getName().getString());
+            if (m != null) {
+                KAIMyEntityRendererPlayerHelper.ResetPhysics(localPlayer);
+                assert localPlayer != null;
+                PacketDistributor.sendToServer(new KAIMyEntityNetworkPack(2, localPlayer.getGameProfile(), 0));
+            }
+        }
+        if (keyReloadProperties.isDown()) {
+            KAIMyEntityClient.reloadProperties = true;
+        }
+
+        // MMD 셰이더 키 처리 - 설정 접근 완전 제거
+        if (keyChangeProgram.isDown()) {
+            KAIMyEntityClient.usingMMDShader = 1 - KAIMyEntityClient.usingMMDShader;
+
+            if(KAIMyEntityClient.usingMMDShader == 0)
+                MCinstance.gui.getChat().addMessage(Component.literal("Default shader"));
+            if(KAIMyEntityClient.usingMMDShader == 1)
+                MCinstance.gui.getChat().addMessage(Component.literal("MMDShader"));
+        }
+
+        // VSeeFace 토글
+        if (keyToggleVSeeFace.isDown()) {
+            VSeeFaceManager.getInstance().toggleVSeeFace();
+        }
+
+        // VSeeFace 설정 (간단한 민감도 조정)
+        if (keyVSeeFaceSettings.isDown()) {
+            VSeeFaceManager manager = VSeeFaceManager.getInstance();
+            if (manager.isEnabled()) {
+                // 민감도 순환 (0.5 -> 1.0 -> 1.5 -> 2.0 -> 0.5)
+                float currentSensitivity = manager.getHeadSensitivity();
+                float newSensitivity = currentSensitivity >= 2.0f ? 0.5f : currentSensitivity + 0.5f;
+                manager.setHeadSensitivity(newSensitivity);
+                MCinstance.gui.getChat().addMessage(
+                        Component.literal("VSeeFace 민감도: " + String.format("%.1f", newSensitivity))
+                );
+            }
+        }
+    }
+}

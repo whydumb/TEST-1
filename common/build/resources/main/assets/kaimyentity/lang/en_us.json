@@ -1,0 +1,13 @@
+{
+  "key.title": "KAIMyEntity",
+  "key.resetPhysics": "Reset Physics",
+  "key.reloadModels": "Reload Models",
+  "key.reloadProperties": "Reload Properties",
+  "key.changeProgram": "Change Program",
+  "key.customAnim1": "Custom Animation 1",
+  "key.customAnim2": "Custom Animation 2",
+  "key.customAnim3": "Custom Animation 3",
+  "key.customAnim4": "Custom Animation 4",
+  "key.toggleVSeeFace": "Toggle VSeeFace Tracking",
+  "key.vseeFaceSettings": "VSeeFace Settings"
+}
